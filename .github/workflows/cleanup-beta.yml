@@ -1,0 +1,46 @@
+name: Cleanup Beta Branches
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'  
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Get stale beta branches
+      id: get-branches
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        DATE_THRESHOLD=$(date -d "30 days ago" --utc +%FT%TZ)
+        BRANCHES=$(gh api repos/${{ github.repository }}/branches --jq '
+          [.[] | select(.name | startswith("beta/") or startswith("paired-beta/")) |
+          select(.commit.commit.committer.date < "'$DATE_THRESHOLD'") | .name] | join(",")')
+        echo "branches=${BRANCHES}" >> $GITHUB_OUTPUT
+
+    - name: Delete branches and notify
+      if: ${{ steps.get-branches.outputs.branches != '' }}
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+      run: |
+        IFS=',' read -ra BRANCH_ARRAY <<< "${{ steps.get-branches.outputs.branches }}"
+        for branch in "${BRANCH_ARRAY[@]}"; do
+          echo "Deleting branch $branch"
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$branch"
+        done
+        
+        # Send Slack notification
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"Deleted stale beta branches: ${{ steps.get-branches.outputs.branches }}\nPlease verify associated infrastructure removal.\"}" \
+          $SLACK_WEBHOOK
