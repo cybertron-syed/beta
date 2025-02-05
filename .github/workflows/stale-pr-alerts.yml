@@ -1,0 +1,34 @@
+name: Stale PR Alerts
+
+on:
+  schedule:
+    - cron: '0 0 1 * *' 
+  workflow_dispatch:
+
+jobs:
+  check-prs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Get stale PRs
+      id: stale-prs
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        DATE_THRESHOLD=$(date -d "90 days ago" --utc +%FT%TZ)
+        PRS=$(gh pr list --json number,title,updatedAt,url,draft --state all --jq '
+          [.[] | select(.updatedAt < "'$DATE_THRESHOLD'") | 
+          "- <\(.url)|\(.title)> (Draft: \(.draft))"] | join("\n")')
+        echo "prs<<EOF" >> $GITHUB_OUTPUT
+        echo "$PRS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Notify Slack
+      if: ${{ steps.stale-prs.outputs.prs != '' }}
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+      run: |
+        MESSAGE="*Stale PRs needing review (older than 90 days):*\n${{ steps.stale-prs.outputs.prs }}"
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"$MESSAGE\"}" \
+          $SLACK_WEBHOOK
