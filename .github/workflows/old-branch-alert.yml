@@ -1,0 +1,34 @@
+name: Old Branch Alerts
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'  # Monthly
+  workflow_dispatch:
+
+jobs:
+  check-branches:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Get old branches
+      id: old-branches
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        DATE_THRESHOLD=$(date -d "1 year ago" --utc +%FT%TZ)
+        BRANCHES=$(gh api repos/${{ github.repository }}/branches --jq '
+          [.[] | select(.name != "main" and .name != "master" and .name != "develop") |
+          select(.commit.commit.committer.date < "'$DATE_THRESHOLD'") | .name] | join("\n")')
+        echo "branches<<EOF" >> $GITHUB_OUTPUT
+        echo "$BRANCHES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Notify Slack
+      if: ${{ steps.old-branches.outputs.branches != '' }}
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+      run: |
+        MESSAGE="*Branches older than 1 year:*\n${{ steps.old-branches.outputs.branches }}"
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"$MESSAGE\"}" \
+          $SLACK_WEBHOOK
