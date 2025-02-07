@@ -1,0 +1,62 @@
+name: Alert Stale PRs and Old Branches
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'  
+  workflow_dispatch:
+
+jobs:
+  check-stale-prs-and-branches:
+    runs-on: ubuntu-latest
+    environment: ops_utils
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up GitHub App Token
+      uses: actions/create-github-app-token@v1
+      id: app-token
+      with:
+        app-id: ${{ vars.SCIAM_OPS_CLIENT_ID }}
+        private-key: ${{ secrets.SCIAM_OPS_PRIVATE_KEY }}
+
+    - name: Get stale PRs
+      id: stale-prs
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        DATE_THRESHOLD=$(date -d "90 days ago" --utc +%FT%TZ)
+        PRS=$(gh pr list --json number,title,updatedAt,url,draft --state all --jq '
+          [.[] | select(.updatedAt < "'$DATE_THRESHOLD'") | 
+          "- <\(.url)|\(.title)> (Draft: \(.draft))"] | join("\n")')
+        echo "prs<<EOF" >> $GITHUB_OUTPUT
+        echo "$PRS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Get old branches
+      id: old-branches
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        DATE_THRESHOLD=$(date -d "1 year ago" --utc +%FT%TZ)
+        BRANCHES=$(gh api repos/${{ github.repository }}/branches --jq '
+          [.[] | select(.name != "main" and .name != "master" and .name != "develop") |
+          select(.commit.commit.committer.date < "'$DATE_THRESHOLD'") | .name] | join("\n")')
+        echo "branches<<EOF" >> $GITHUB_OUTPUT
+        echo "$BRANCHES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Notify Slack
+      if: ${{ steps.stale-prs.outputs.prs != '' || steps.old-branches.outputs.branches != '' }}
+      uses: slackapi/slack-github-action@v2.0.0
+      with:
+        webhook: ${{ secrets.SLACK_WEBHOOK_SAWEBTEAM }}
+        webhook-type: incoming-webhook
+        payload: |
+          {
+            "text": "*Monthly Stale PR and Old Branch Report:*\n\n*Stale PRs (older than 90 days):*\n${{ steps.stale-prs.outputs.prs }}\n\n*Old Branches (older than 1 year):*\n${{ steps.old-branches.outputs.branches }}",
+            "icon_emoji": ":hourglass_flowing_sand:"
+          }
