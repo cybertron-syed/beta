@@ -1,0 +1,59 @@
+name: Cleanup Beta Branch Infra
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'  
+  workflow_dispatch:
+
+jobs:
+  cleanup-beta-infra:
+    runs-on: ubuntu-latest
+    environment: ops_utils
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up GitHub App Token
+      uses: actions/create-github-app-token@v1
+      id: app-token
+      with:
+        app-id: ${{ vars.SCIAM_OPS_CLIENT_ID }}
+        private-key: ${{ secrets.SCIAM_OPS_PRIVATE_KEY }}
+
+    - name: Get stale beta branches
+      id: get-branches
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        DATE_THRESHOLD=$(date -d "30 days ago" --utc +%FT%TZ)
+        BRANCHES=$(gh api repos/${{ github.repository }}/branches --jq '
+          [.[] | select(.name | startswith("beta/") or startswith("paired-beta/")) |
+          select(.commit.commit.committer.date < "'$DATE_THRESHOLD'") | .name] | join(",")')
+        echo "branches=${BRANCHES}" >> $GITHUB_OUTPUT
+
+    - name: Delete beta infrastructure
+      if: ${{ steps.get-branches.outputs.branches != '' }}
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        IFS=',' read -ra BRANCH_ARRAY <<< "${{ steps.get-branches.outputs.branches }}"
+        for branch in "${BRANCH_ARRAY[@]}"; do
+          echo "Deleting infrastructure for branch: $branch"
+            
+        done
+
+    - name: Notify Slack
+      if: ${{ steps.get-branches.outputs.branches != '' }}
+      uses: slackapi/slack-github-action@v2.0.0
+      with:
+        webhook: ${{ secrets.SLACK_WEBHOOK_SAWEBTEAM }}
+        webhook-type: incoming-webhook
+        payload: |
+          {
+            "text": "Deleted infrastructure for stale beta branches:\n${{ steps.get-branches.outputs.branches }}",
+            "icon_emoji": ":wastebasket:"
+          }
