@@ -1,0 +1,92 @@
+name: Cleanup Beta Infrastructure
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - 'beta/**'
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: ops_utils
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Set up GitHub App Token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.SCIAM_OPS_CLIENT_ID }}
+          private-key: ${{ secrets.SCIAM_OPS_PRIVATE_KEY }}
+      - name: Get stale beta branches
+        id: get-branches
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          DATE_THRESHOLD=$(date -d "30 days ago" +%s)
+          BRANCHES=$(for branch in $(git for-each-ref --format="%(refname:short)" refs/heads/); do
+            if [[ "$branch" == beta/* || "$branch" == paired-beta/* ]]; then
+              commit_date=$(git log -1 --format="%ct" "$branch")
+              if [ $commit_date -lt $DATE_THRESHOLD ]; then
+                echo -n "$branch,"
+              fi
+            fi
+          done | sed 's/,$//')
+          echo "branches=${BRANCHES}" >> $GITHUB_OUTPUT
+      - name: Delete beta infrastructure
+        if: ${{ steps.get-branches.outputs.branches != '' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          IFS=',' read -ra BRANCH_ARRAY <<< "${{ steps.get-branches.outputs.branches }}"
+          for branch in "${BRANCH_ARRAY[@]}"; do
+            echo "Deleting infrastructure for branch: $branch"
+          done
+      - name: Setup AWS Profiles
+        run: |
+          mkdir -p ~/.aws
+          cat <<EOF > ~/.aws/config
+[profile dev]
+region = us-east-1
+[profile prod]
+region = us-east-1
+EOF
+          cat <<EOF > ~/.aws/credentials
+[dev]
+aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_DJANGO }}
+aws_secret_access_key=${{ secrets.AWS_SECRET_KEY_DJANGO }}
+[prod]
+aws_access_key_id=${{ vars.AWS_R53_ACCESS_KEY }}
+aws_secret_access_key=${{ secrets.AWS_R53_SECRET_KEY }}
+EOF
+      - name: Delete ECS Services for Deleted Beta Branches
+        id: delete-ecs
+        working-directory: infrastructure/stacks/ecs-services/beta-services-template
+        run: |
+          git fetch --all --prune
+          git branch -a | grep 'remotes/origin/beta' | awk -F/ '{print $NF}' > listofbranches
+          services=$(aws ecs list-services --profile dev --region us-east-1 --cluster test-ecs-cluster --query 'serviceArns[*]' --output text)
+          > listofservices
+          for service in $services; do
+            service_name=$(basename "$service")
+            if [[ $service_name == beta* ]]; then
+              branch_name=$(echo "$service_name" | sed 's/^beta-//' | sed 's/-node-service//' | sed 's/-django-service//')
+              echo "$branch_name" >> listofservices
+            fi
+          done
+          ./cleanup-beta.sh listofservices listofbranches
+      - name: Notify Slack
+        if: ${{ steps.get-branches.outputs.branches != '' }}
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SAWEBTEAM }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "Deleted infrastructure for stale beta branches:\n${{ steps.get-branches.outputs.branches }}",
+              "icon_emoji": ":wastebasket:"
+            }
