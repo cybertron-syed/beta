@@ -27,22 +27,16 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          DATE_THRESHOLD=$(date -d "30 days ago" +%s)
-          BRANCHES=$(for branch in $(git for-each-ref --format="%(refname:short)" refs/heads/); do
-            if [[ "$branch" == beta/* || "$branch" == paired-beta/* ]]; then
-              commit_date=$(git log -1 --format="%ct" "$branch")
-              if [ $commit_date -lt $DATE_THRESHOLD ]; then
-                echo -n "$branch,"
-              fi
-            fi
-          done | sed 's/,$//')
+          DATE_THRESHOLD=$(date -d "30 days ago" --utc +%FT%TZ)
+          BRANCHES=$(git log --all --branches --since="$DATE_THRESHOLD" --pretty=format:'%d' | grep -o '\(beta/\|paired-beta/\)[^)]*' | sort -u)
           echo "branches=${BRANCHES}" >> $GITHUB_OUTPUT
+          echo "Stale beta branches: $BRANCHES"
       - name: Delete beta infrastructure
         if: ${{ steps.get-branches.outputs.branches != '' }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          IFS=',' read -ra BRANCH_ARRAY <<< "${{ steps.get-branches.outputs.branches }}"
+          IFS=$'\n' read -rd '' -a BRANCH_ARRAY <<< "${{ steps.get-branches.outputs.branches }}"
           for branch in "${BRANCH_ARRAY[@]}"; do
             echo "Deleting infrastructure for branch: $branch"
           done
