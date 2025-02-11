@@ -1,0 +1,110 @@
+name: Cleanup Beta Infrastructure
+on:
+  schedule:
+    - cron: '0 0 1 * *'  
+  workflow_dispatch:
+  push:
+    branches:
+      - 'beta/**'
+    paths:
+      - '.github/workflows/cleanup-beta-infra.yml'
+
+jobs:
+  cleanup-beta-infra:
+    runs-on: ubuntu-latest
+    environment: ops_utils
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up GitHub App Token
+      uses: actions/create-github-app-token@v1
+      id: app-token
+      with:
+        app-id: ${{ vars.SCIAM_OPS_CLIENT_ID }}
+        private-key: ${{ secrets.SCIAM_OPS_PRIVATE_KEY }}
+
+    - name: Get stale beta branches
+      id: get-branches
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        DATE_THRESHOLD=$(date -d "30 days ago" --utc +%FT%TZ)
+        BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/beta/|origin/paired-beta/' | while read branch; do
+          LAST_COMMIT_DATE=$(git log -1 --format=%cd --date=iso-strict "$branch")
+          if [[ "$LAST_COMMIT_DATE" < "$DATE_THRESHOLD" ]]; then
+            echo "$branch"
+          fi
+        done | tr '\n' ',')
+        echo "branches=${BRANCHES%,}" >> $GITHUB_OUTPUT
+
+    - name: Delete beta infrastructure
+      if: ${{ steps.get-branches.outputs.branches != '' }}
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+      run: |
+        IFS=',' read -ra BRANCH_ARRAY <<< "${{ steps.get-branches.outputs.branches }}"
+        for branch in "${BRANCH_ARRAY[@]}"; do
+          echo "Deleting infrastructure for branch: $branch"
+        done
+
+    - name: Notify Slack
+      if: ${{ steps.get-branches.outputs.branches != '' }}
+      uses: slackapi/slack-github-action@v2.0.0
+      with:
+        webhook: ${{ secrets.SLACK_WEBHOOK_SAWEBTEAM }}
+        webhook-type: incoming-webhook
+        payload: |
+          {
+            "text": "Deleted infrastructure for stale beta branches:\n${{ steps.get-branches.outputs.branches }}",
+            "icon_emoji": ":wastebasket:"
+          }
+
+  destroy-infra:
+    runs-on: ubuntu-latest
+    environment: django_staging
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Setup AWS profiles
+      env:
+        ACCESS_KEY_DEV: ${{ secrets.AWS_ACCESS_KEY_DJANGO }}
+        SECRET_KEY_DEV: ${{ secrets.AWS_SECRET_KEY_DJANGO }}
+        ACCESS_KEY_PROD: ${{ vars.AWS_R53_ACCESS_KEY }}
+        SECRET_KEY_PROD: ${{ secrets.AWS_R53_SECRET_KEY }}
+      run: |
+        mkdir -p ~/.aws
+        echo "[profile dev]" >> ~/.aws/config
+        echo "region = us-east-1" >> ~/.aws/config
+        echo "[profile prod]" >> ~/.aws/config
+        echo "region = us-east-1" >> ~/.aws/config
+        echo "[dev]" >> ~/.aws/credentials
+        echo "aws_access_key_id=$ACCESS_KEY_DEV" >> ~/.aws/credentials
+        echo "aws_secret_access_key=$SECRET_KEY_DEV" >> ~/.aws/credentials
+        echo "[prod]" >> ~/.aws/credentials
+        echo "aws_access_key_id=$ACCESS_KEY_PROD" >> ~/.aws/credentials
+        echo "aws_secret_access_key=$SECRET_KEY_PROD" >> ~/.aws/credentials
+
+    - name: Delete ECS services
+      id: delete-ecs
+      working-directory: infrastructure/stacks/ecs-services/beta-services-template
+      run: |
+        git fetch --all --prune &>> /dev/null
+        git branch -a | grep remotes/origin/beta | awk -F/ '{print $4}' >> listofbranches
+        services=$(aws ecs list-services --profile dev --region us-east-1 --cluster test-ecs-cluster --query 'serviceArns[*]' --output text)
+        for service in $services; do
+          service_name=$(basename $service)
+          if [[ $service_name == beta* ]]; then
+            service_name=$(echo $service_name | sed 's/beta-//' | sed 's/-node-service//' | sed 's/-django-service//')
+            echo $service_name >> listofservices
+          fi
+        done
+        ./cleanup-beta.sh listofservices listofbranches
