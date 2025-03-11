@@ -1,0 +1,39 @@
+name: ZAP Baseline Scan
+
+on:
+  schedule:
+    - cron: '0 12 * * 1'  # Runs every Monday at 12:00 UTC
+  workflow_dispatch:      # Allows manual trigger
+
+jobs:
+  zap_scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ZAP Baseline Scan
+        run: |
+          docker run --rm --user root \
+            -v ${{ github.workspace }}:/zap/wrk/ \
+            --network=host \
+            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t https://hisyed.live \
+            -J report_json.json -w report_md.md -r report_html.html
+
+      - name: Upload Reports as Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: zap_scan_reports
+          path: |
+            report_json.json
+            report_md.md
+            report_html.html
+
+      - name: Create GitHub Issue if Vulnerabilities Found
+        uses: zaproxy/action-baseline@v0.11.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: https://hisyed.live
+          artifact_name: zap_scan_reports
