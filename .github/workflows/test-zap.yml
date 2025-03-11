@@ -26,7 +26,7 @@ jobs:
           mkdir -p ops_utils/zap
 
           if [ ! -f ops_utils/zap/baseline_rules.tsv ]; then
-            echo "WARN-NEW: Content Security Policy (CSP) Header Not Set 10038	IGNORE" > ops_utils/zap/baseline_rules.tsv
+            echo -e "WARN-NEW\t10038\tIGNORE" > ops_utils/zap/baseline_rules.tsv
             echo "Created a default baseline_rules.tsv file."
           else
             echo "baseline_rules.tsv already exists. Skipping creation. "
@@ -64,7 +64,7 @@ jobs:
           mkdir -p ops_utils/zap
 
           if [ ! -f ops_utils/zap/baseline_rules.tsv ]; then
-            echo "WARN-NEW: Content Security Policy (CSP) Header Not Set 10038	IGNORE" > ops_utils/zap/baseline_rules.tsv
+            echo -e "WARN-NEW\t10038\tIGNORE" > ops_utils/zap/baseline_rules.tsv
             echo "Created a default rules.tsv file."
           else
             echo "baseline_rules.tsv already exists. Skipping creation. "
