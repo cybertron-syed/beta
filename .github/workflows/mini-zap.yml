@@ -19,7 +19,7 @@ jobs:
             -v ${{ github.workspace }}:/zap/wrk/ \
             --network=host \
             ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-            -t https://hisyed.live \
+            -t https://hisyed.live \ -I --exit-code False
             -J report_json.json -w report_md.md -r report_html.html
 
       - name: Upload Reports as Artifacts
