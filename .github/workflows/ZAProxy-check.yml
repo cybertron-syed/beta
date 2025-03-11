@@ -32,26 +32,26 @@ jobs:
         uses: zaproxy/action-baseline@v0.11.0
         with:
           target: "https://hisyed.live"
-          fail_action: false
-          rules_file_name: ".zap/rules.tsv"
-          docker_name: "ghcr.io/zaproxy/zaproxy:stable"
-          issue_title: "ZAP Scan Baseline Report"
-          allow_issue_writing: true
-          artifact_name: "zap_scan"
+      #     fail_action: false
+      #     rules_file_name: ".zap/rules.tsv"
+      #     docker_name: "ghcr.io/zaproxy/zaproxy:stable"
+      #     issue_title: "ZAP Scan Baseline Report"
+      #     allow_issue_writing: true
+      #     artifact_name: "zap_scan"
 
-      - name: Upload ZAP Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap_scan_report
-          path: zap_scan/*
+      # - name: Upload ZAP Report
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: zap_scan_report
+      #     path: zap_scan/*
 
-      - name: Notify Slack
-        if: always()
-        uses: slackapi/slack-github-action@v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SAWEBTEAM }}
-          payload: |
-            {
-              "text": "⚡ *ZAP Baseline Scan Completed* ⚡\n\n*Target:* https://hisyed.live\n\n*Warnings Found:* 11\n\n*Full Report:* (See GitHub Artifacts)",
-              "icon_emoji": ":zap:"
-            }
+      # - name: Notify Slack
+      #   if: always()
+      #   uses: slackapi/slack-github-action@v2.0.0
+      #   with:
+      #     webhook: ${{ secrets.SLACK_WEBHOOK_SAWEBTEAM }}
+      #     payload: |
+      #       {
+      #         "text": "⚡ *ZAP Baseline Scan Completed* ⚡\n\n*Target:* https://hisyed.live\n\n*Warnings Found:* 11\n\n*Full Report:* (See GitHub Artifacts)",
+      #         "icon_emoji": ":zap:"
+      #       }
