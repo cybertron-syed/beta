@@ -47,11 +47,15 @@ jobs:
           allow_issue_writing: true
           artifact_name: "zapsciam"
 
+      - name: List Files
+        run: ls -R ops_utils/zap/
+
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
-          name: zap_scan_scientificamerican
-          path: zap_scan/*
+          name: "zapscan"
+          path: "ops_utils/zap/*"  # Ensure this path exists!
+
 
   zap_scan_main_scientificamerican:
     name: Run ZAP Baseline Scan for main.scientificamerican.com
@@ -85,9 +89,13 @@ jobs:
           allow_issue_writing: true
           artifact_name: "zapmainsciam"
 
+      - name: List Files
+        run: ls -R ops_utils/zap/
+
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
-          name: zap_scan_main_scientificamerican
-          path: zap_scan/*
+          name: "zapscan"
+          path: "ops_utils/zap/*"  # Ensure this path exists!
+
 
