@@ -3,7 +3,7 @@ name: Run ZAProxy Baseline Scans
 on:
   push:
     branches:
-      - "main"
+      - main
   schedule:
     - cron: "0 0 1 * *"
   workflow_dispatch:
