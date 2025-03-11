@@ -53,7 +53,7 @@ jobs:
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
-          name: "zapscan"
+          name: "zapsciam"
           path: "ops_utils/zap/*"  # Ensure this path exists!
 
 
@@ -95,7 +95,7 @@ jobs:
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
-          name: "zapscan"
+          name: "zapmainsciam"
           path: "ops_utils/zap/*"  # Ensure this path exists!
 
 
