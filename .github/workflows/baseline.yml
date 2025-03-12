@@ -24,23 +24,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: checking baseline.conf
-        run: ls -lah $(pwd)/beta
-
-      - name: Create baseline.conf if missing
+      - name: Debug Paths
         run: |
-          mkdir -p $(pwd)/beta
-          touch $(pwd)/beta/baseline.conf
+          pwd
+          ls -lah
+          ls -lah $GITHUB_WORKSPACE
 
-      - name: Verify baseline.conf
-        run: ls -lah $(pwd)/beta
+      - name: Ensure beta directory exists
+        run: mkdir -p $GITHUB_WORKSPACE/beta
 
 
-      - name: Run ZAP Baseline Scan
-        id: zap_sciam
+      - name: Check if beta directory exists
+        run: ls -lah $GITHUB_WORKSPACE/beta
+
+      - name: Run ZAP Scan
         run: |
-          docker run -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+          docker run -v $GITHUB_WORKSPACE/beta:/zap/wrk/beta:rw \
+          -t ghcr.io/zaproxy/zaproxy:stable \
           zap-baseline.py -t https://www.scientificamerican.com -g /zap/wrk/beta/baseline.conf -r /zap/wrk/testreport.html
+
 
 
       - name: Upload ZAP Report
@@ -59,22 +61,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: checking baseline.conf
-        run: ls -lah $(pwd)/beta
-
-      - name: Create baseline.conf if missing
+      - name: Debug Paths
         run: |
-          mkdir -p $(pwd)/beta
-          touch $(pwd)/beta/baseline.conf
+          pwd
+          ls -lah
+          ls -lah $GITHUB_WORKSPACE
 
-      - name: Verify baseline.conf
-        run: ls -lah $(pwd)/beta
+      - name: Ensure beta directory exists
+        run: mkdir -p $GITHUB_WORKSPACE/beta
 
-      - name: Run ZAP Baseline Scan
-        id: zap_sciam
+
+      - name: Check if beta directory exists
+        run: ls -lah $GITHUB_WORKSPACE/beta
+
+      - name: Run ZAP Scan
         run: |
-          docker run -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
-          zap-baseline.py -t https://main-www.scientificamerican.com -g /zap/wrk/beta/baseline.conf -r /zap/wrk/testreport.html
+          docker run -v $GITHUB_WORKSPACE/beta:/zap/wrk/beta:rw \
+          -t ghcr.io/zaproxy/zaproxy:stable \
+          zap-baseline.py -t https://www.scientificamerican.com -g /zap/wrk/beta/baseline.conf -r /zap/wrk/testreport.html
 
           
       - name: Upload ZAP Report
