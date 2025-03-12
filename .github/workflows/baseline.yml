@@ -37,11 +37,12 @@ jobs:
       - name: Check if beta directory exists
         run: ls -lah $GITHUB_WORKSPACE/beta
 
+
       - name: Run ZAP Scan
         run: |
-          docker run -v $GITHUB_WORKSPACE/beta:/zap/wrk/beta:rw \
+          docker run -v $GITHUB_WORKSPACE/beta:/zap/wrk:rw \
           -t ghcr.io/zaproxy/zaproxy:stable \
-          zap-baseline.py -t https://www.scientificamerican.com -g /zap/wrk/beta/baseline.conf -r /zap/wrk/testreport.html
+          zap-baseline.py -t https://www.scientificamerican.com -g /zap/wrk/baseline.conf -r /zap/wrk/testreport.html
 
 
 
