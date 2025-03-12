@@ -1,4 +1,4 @@
-name: Run ZAProxy Baseline Scans
+name: Run ZAProxy zap
 
 on:
   push:
