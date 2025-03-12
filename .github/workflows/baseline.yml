@@ -24,6 +24,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: checking baseline.conf
+        run: ls -lah $(pwd)/beta
+
+      - name: Create baseline.conf if missing
+        run: |
+          mkdir -p $(pwd)/beta
+          touch $(pwd)/beta/baseline.conf
+
+      - name: Verify baseline.conf
+        run: ls -lah $(pwd)/beta
+
+
       - name: Run ZAP Baseline Scan
         id: zap_sciam
         run: |
@@ -46,6 +58,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: checking baseline.conf
+        run: ls -lah $(pwd)/beta
+
+      - name: Create baseline.conf if missing
+        run: |
+          mkdir -p $(pwd)/beta
+          touch $(pwd)/beta/baseline.conf
+
+      - name: Verify baseline.conf
+        run: ls -lah $(pwd)/beta
 
       - name: Run ZAP Baseline Scan
         id: zap_sciam
